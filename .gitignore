@@ -1,0 +1,21 @@
+# Large data files
+AutoBacktest/eurusd_m5.csv
+AutoBacktest/optimize_results.csv
+AutoBacktest/optimize_v2_results.csv
+AutoBacktest/backtest_results.csv
+*.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Claude internal
+.claude/
+
+# Log files
+*.log
+
+# MT5 output
+AutoBacktest/SEUR_*.csv
