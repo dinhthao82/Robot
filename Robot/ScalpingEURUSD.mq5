@@ -16,9 +16,9 @@
 //|   DAY_END | FINAL                                                |
 //|   File: MQL5\Files\SEUR_<Symbol>_<TF>_<datetime>.csv           |
 //+------------------------------------------------------------------+
-#property copyright "ScalpingEURUSD v1.10"
-#property version   "1.10"
-#property description "EMA21+EMA50+RSI14 Scalping – EUR/USD – Exness | AutoBacktest Log P1"
+#property copyright "ScalpingEURUSD v1.20"
+#property version   "1.20"
+#property description "EMA21+EMA50+RSI14 Scalping – EUR/USD – Exness | AutoBacktest Log P1 | Optimized RR 1:2"
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -30,8 +30,8 @@ CDealInfo     g_deal;
 
 //--- ===== INPUT PARAMETERS =====
 input group "=== SESSION (VN TIME GMT+7) ==="
-input int    InpSessionStart  = 14;    // Giờ bắt đầu (VN)
-input int    InpSessionEnd    = 22;    // Giờ kết thúc (VN)
+input int    InpSessionStart  = 16;    // Giờ bắt đầu (VN) [opt: 16]
+input int    InpSessionEnd    = 22;    // Giờ kết thúc (VN) [opt: 22]
 input int    InpServerGMT     = 3;     // Server GMT offset (Exness = 3)
 input bool   InpForceCloseEOD = true;  // Đóng lệnh khi hết phiên
 
@@ -42,27 +42,29 @@ input int    InpMaxConsecLoss = 2;     // Dừng phiên sau N lệnh thua liên 
 input double InpMaxSpread     = 20;    // Spread tối đa (points, 20 = 2 pip Standard)
 
 input group "=== STOP LOSS / TAKE PROFIT ==="
-input double InpStopLoss      = 50;    // SL (points) – mặc định 5 pip
-input double InpTakeProfit    = 100;   // TP (points) – mặc định 10 pip
-input bool   InpUseBreakEven  = true;  // Bật Break-Even
-input double InpBEActivate    = 60;    // Kích hoạt BE khi lãi X points
-input double InpBELock        = 30;    // Lock thêm X points sau BE (>=spread để tránh invalid stops)
-input bool   InpUseTrailing   = true;  // Bật Trailing Stop
+input double InpStopLoss      = 25;    // SL (points) [opt: 25 = 2.5 pip]
+input double InpTakeProfit    = 50;    // TP (points) [opt: 50 = 5 pip, RR 1:2]
+input bool   InpUseBreakEven  = false; // Bật Break-Even [opt: false – pure TP/SL]
+input double InpBEActivate    = 0;     // Kích hoạt BE khi lãi X points (0=disable)
+input double InpBELock        = 0;     // Lock thêm X points sau BE (0=disable)
+input bool   InpUseTrailing   = false; // Bật Trailing Stop [opt: false]
 input double InpTrailingStart = 80;    // Bắt đầu trailing khi lãi X points
 input double InpTrailingStep  = 30;    // Bước trailing (points)
 
 input group "=== EMA SETTINGS ==="
 input int    InpFastEMA       = 21;    // EMA nhanh
 input int    InpSlowEMA       = 50;    // EMA chậm
-input double InpEMABuffer     = 30;    // Vùng chạm EMA21 (±X points)
-input ENUM_TIMEFRAMES InpTF   = PERIOD_M5; // Timeframe chiến lược
+input double InpEMABuffer     = 15;    // Vung cham EMA (+-X points) [opt: 15]
+input bool   InpRequireEMA50Touch = true; // Pullback phai cham EMA50 (thay vi EMA21) [opt: true]
+input int    InpMinBodyPts    = 20;    // Body nen toi thieu (points, 0=tat) [opt: 20]
+input ENUM_TIMEFRAMES InpTF   = PERIOD_M5; // Timeframe chien luoc
 
 input group "=== RSI SETTINGS ==="
 input int    InpRSIPeriod     = 14;    // RSI period
-input double InpRSIBuyMin     = 45.0;  // RSI BUY tối thiểu
-input double InpRSIBuyMax     = 70.0;  // RSI BUY tối đa (tránh overbought)
-input double InpRSISellMin    = 30.0;  // RSI SELL tối thiểu (tránh oversold)
-input double InpRSISellMax    = 55.0;  // RSI SELL tối đa
+input double InpRSIBuyMin     = 60.0;  // RSI BUY min [opt: 60]
+input double InpRSIBuyMax     = 68.0;  // RSI BUY max [opt: 68]
+input double InpRSISellMin    = 38.0;  // RSI SELL min [opt: 38]
+input double InpRSISellMax    = 48.0;  // RSI SELL max [opt: 48]
 
 input group "=== EA SETTINGS ==="
 input int    InpMagic         = 20260411; // Magic Number
@@ -204,14 +206,14 @@ void Log_Init()
         "Risk=%.1f MaxDailyLoss=%.1f MaxConsecLoss=%d MaxSpread=%.0f "
         "SL=%.0f TP=%.0f BE=%s BEAct=%.0f BELck=%.0f "
         "Trail=%s TrlStart=%.0f TrlStep=%.0f "
-        "FastEMA=%d SlowEMA=%d EMABuf=%.0f "
+        "FastEMA=%d SlowEMA=%d EMABuf=%.0f EMA50Touch=%s MinBody=%.0f "
         "RSI=%d BuyRSI=%.0f-%.0f SellRSI=%.0f-%.0f",
         _Symbol, TFName(InpTF), InpMagic,
         InpSessionStart, InpSessionEnd, InpServerGMT, IB(InpForceCloseEOD),
         InpRiskPercent, InpMaxDailyLoss, InpMaxConsecLoss, InpMaxSpread,
         InpStopLoss, InpTakeProfit, IB(InpUseBreakEven), InpBEActivate, InpBELock,
         IB(InpUseTrailing), InpTrailingStart, InpTrailingStep,
-        InpFastEMA, InpSlowEMA, InpEMABuffer,
+        InpFastEMA, InpSlowEMA, InpEMABuffer, IB(InpRequireEMA50Touch), InpMinBodyPts,
         InpRSIPeriod, InpRSIBuyMin, InpRSIBuyMax, InpRSISellMin, InpRSISellMax
     );
 
@@ -753,11 +755,16 @@ int GetSignal(bool &buyTrend,  bool &buyPullback,  bool &buyBounce,  bool &buyRS
     double open_1   = iOpen(_Symbol,  InpTF, 1);
     double close_2  = iClose(_Symbol, InpTF, 2);
     double bufPts   = InpEMABuffer * _Point;
+    double minBody  = InpMinBodyPts * _Point;
+
+    // Pullback reference: EMA50 (deeper filter) or EMA21
+    double pullRef  = InpRequireEMA50Touch ? ema50_1 : ema21_1;
 
     // BUY conditions
     buyTrend    = (ema21_1 > ema50_1) && (ema21_2 > ema50_2);
-    buyPullback = (low_1 <= ema21_1 + bufPts);
-    buyBounce   = (close_1 > ema21_1) && (close_1 > open_1);
+    buyPullback = (low_1 <= pullRef + bufPts);                      // cham EMA50/21
+    buyBounce   = (close_1 > ema21_1) && (close_1 > open_1)
+                  && (InpMinBodyPts <= 0 || (close_1 - open_1) >= minBody); // body filter
     buyRSI      = (rsi_1 >= InpRSIBuyMin && rsi_1 <= InpRSIBuyMax);
     buyStrength = (close_2 > ema50_2);
 
@@ -766,8 +773,9 @@ int GetSignal(bool &buyTrend,  bool &buyPullback,  bool &buyBounce,  bool &buyRS
 
     // SELL conditions
     sellTrend    = (ema21_1 < ema50_1) && (ema21_2 < ema50_2);
-    sellPullback = (high_1 >= ema21_1 - bufPts);
-    sellBounce   = (close_1 < ema21_1) && (close_1 < open_1);
+    sellPullback = (high_1 >= pullRef - bufPts);                     // cham EMA50/21
+    sellBounce   = (close_1 < ema21_1) && (close_1 < open_1)
+                   && (InpMinBodyPts <= 0 || (open_1 - close_1) >= minBody); // body filter
     sellRSI      = (rsi_1 >= InpRSISellMin && rsi_1 <= InpRSISellMax);
     sellStrength = (close_2 < ema50_2);
 

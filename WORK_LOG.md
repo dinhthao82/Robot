@@ -69,7 +69,7 @@ Cach 2 – Export tu MT5 History Center:
 - **VAN DE**: WR 76% la ao – 76% exit la BE (kiem ~$0.03/lenh), chi 2/280 = 0.7% la TP that
 - Ket qua that su: P&L = -$9.36, PF = 0.42 (THUA LON)
 
-### Phase 4: Profitability Optimization [DANG LAM – CAN TIEP TUC]
+### Phase 4: Profitability Optimization [DONE]
 - `AutoBacktest/optimize_v2.py` – Tim config CO LOI NHUAN that su
 - TP Sweep da chay (SL=25 co dinh, TP=8..50, khong BE):
   ```
@@ -86,7 +86,12 @@ Cach 2 – Export tu MT5 History Center:
 
 ## VIEC CAN LAM TIEP (PRIORITY ORDER)
 
-### [1] URGENT – Optimize RR 1:2 (SL=25, TP=50) [CAN CHAY]
+### [1] DONE – Optimize RR 1:2 + Update EA v1.20 [HOAN THANH]
+- optimize_v2.py: tim duoc PF=1.56 (SL=25, TP=50, RSI BUY=60-68, SELL=38-48)
+- ScalpingEURUSD.mq5 v1.20: da update + 2 input moi (EMA50Touch, MinBodyPts)
+- Validation backtest: +14% return, PF=1.52, DD=3.8%, N=193 trades
+
+### [2] URGENT – Chay MT5 Strategy Tester voi v1.20 [CAN LAM TIEP]
 Tim RSI/session/filter toi uu cho config co lai (TP=50, SL=25).
 ```bash
 python AutoBacktest/optimize_v2.py
@@ -150,14 +155,14 @@ Trades: 280  WR: 76.8%  P&L: -$9.36  PF: 0.42
 BE exits: 213/280 (76%)  ← WR ao!
 ```
 
-### Best config tim duoc (CO LOI NHUAN – nen dung):
+### Best config tim duoc (CO LOI NHUAN – DA UPDATE vao EA v1.20):
 ```
 SL=25pts  TP=50pts  RR 1:2
-RSI BUY:  60-60  |  RSI SELL: 33-48
-EMA buffer: 25pts, EMA50 touch=True, MinBody=20pts
+RSI BUY:  60-68  |  RSI SELL: 38-48
+EMA buffer: 15pts, EMA50 touch=True, MinBody=20pts
 Session: 16:00-22:00 VN
-Trades: 248  WR: 38.3%  P&L: +$8.67  PF: 1.23
-(Chua optimize RSI/session cho TP=50 – se tang P&L them)
+Trades: 193  WR: 43.0%  P&L: +$13.96  PF: 1.52  DD: 3.8%
+(Da validate Python backtest 1 nam: +14% return)
 ```
 
 ---

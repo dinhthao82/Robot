@@ -253,29 +253,29 @@ def tp_sweep(arr):
 # ─────────────────────────────────────────────────────────────
 # STEP 2: FULL GRID – vary (SL_pts, TP_pts) + entry conditions
 # ─────────────────────────────────────────────────────────────
-# Phase A: Vary SL_pts, TP_pts, session only (fix RSI to Phase-2 best)
+# Phase A: Focus on asymmetric RR (TP >= 1.5x SL) -- where profitability was confirmed
 GRID_A = {
-    'sl_pts':      [15, 20, 25, 30],
-    'tp_pts':      [8, 10, 12, 15, 18, 20, 25],
+    'sl_pts':      [20, 25, 30],
+    'tp_pts':      [35, 40, 45, 50, 55, 60],
     'ema50_touch': [True, False],
     'min_body':    [0, 10, 15, 20],
     'sess_start':  [14, 15, 16],
     'sess_end':    [19, 20, 21, 22],
 }
-# 4*7*2*4*3*4 = 2688 combos
-FIXED_A = dict(rsi_buy_min=58, rsi_buy_max=65, rsi_sell_min=30, rsi_sell_max=50,
+# 3*6*2*4*3*4 = 1728 combos
+FIXED_A = dict(rsi_buy_min=55, rsi_buy_max=68, rsi_sell_min=30, rsi_sell_max=52,
                ema_buf=25, use_be=False, risk_pct=1.0, max_consec=2, max_dd=3.0)
 
 # Phase B: Fix best SL/TP, vary RSI + buffer
 GRID_B = {
-    'rsi_buy_min':  [52, 55, 57, 58, 60, 62, 65],
+    'rsi_buy_min':  [48, 52, 55, 57, 58, 60, 62, 65],
     'rsi_buy_max':  [58, 60, 62, 65, 68, 70],
-    'rsi_sell_min': [28, 30, 33, 35, 38],
+    'rsi_sell_min': [28, 30, 33, 35, 38, 40],
     'rsi_sell_max': [45, 48, 50, 52, 55],
     'ema_buf':      [10, 15, 20, 25, 30, 35],
     'min_body':     [0, 5, 10, 15, 20],
 }
-# 7*6*5*5*6*5 = 31,500 combos per structural config
+# 8*6*6*5*6*5 = 43,200 combos per structural config
 
 
 def run_grid(arr, grid_params, fixed_params, label, min_pf=1.0, min_wr=50.0, min_n=15):
@@ -350,13 +350,13 @@ def print_best(r, label='OPTIMAL CONFIG'):
     print(f'{"="*65}')
     print(f'  SL               : {sl} pts  ({sl/10:.1f} pip)')
     print(f'  TP               : {tp} pts  ({tp/10:.1f} pip)  RR 1:{rr:.2f}')
-    print(f'  RSI BUY          : {r["rsi_buy_min"]} – {r["rsi_buy_max"]}')
-    print(f'  RSI SELL         : {r["rsi_sell_min"]} – {r["rsi_sell_max"]}')
+    print(f'  RSI BUY          : {r["rsi_buy_min"]} - {r["rsi_buy_max"]}')
+    print(f'  RSI SELL         : {r["rsi_sell_min"]} - {r["rsi_sell_max"]}')
     print(f'  EMA buffer       : {r["ema_buf"]} pts')
     print(f'  Require EMA50    : {"YES (pullback to EMA50)" if r["ema50_touch"] else "no – EMA21 is enough"}')
     print(f'  Min candle body  : {r["min_body"]} pts')
     print(f'  Session VN       : {r["sess_start"]}:00 – {r["sess_end"]}:00')
-    print(f'  ─────────────────────────────────')
+    print(f'  ---------------------------------')
     print(f'  Total trades     : {r["n"]}')
     print(f'  Win Rate         : {r["wr"]:.1f}%')
     print(f'  Net P&L ($100)   : ${r["pnl"]:.2f}')
@@ -364,7 +364,7 @@ def print_best(r, label='OPTIMAL CONFIG'):
     print(f'  Profit Factor    : {r["pf"]:.2f}')
     print(f'  Exits: TP={r["n_tp"]}  SL={r["n_sl"]}  BE={r["n_be"]}  EOD={r["n_eod"]}')
     print()
-    print(f'  → EA params to update in ScalpingEURUSD.mq5:')
+    print(f'  => EA params to update in ScalpingEURUSD.mq5:')
     print(f'    InpSL                = {sl}')
     print(f'    InpTP                = {tp}')
     print(f'    InpBEActivate        = 0   // Disable BE (pure TP/SL)')
@@ -381,13 +381,37 @@ def print_best(r, label='OPTIMAL CONFIG'):
 
 
 # ─────────────────────────────────────────────────────────────
+# Compact Phase B grid (faster: ~3,840 combos vs 43,200)
+# Based on Phase A best structural: SL=25, TP=50, sess=16-22VN, ema50=True
+# ─────────────────────────────────────────────────────────────
+GRID_B_FOCUSED = {
+    'rsi_buy_min':  [52, 55, 57, 58, 60, 62, 65],
+    'rsi_buy_max':  [58, 60, 62, 65, 68],
+    'rsi_sell_min': [28, 30, 33, 35, 38],
+    'rsi_sell_max': [45, 48, 50, 52],
+    'ema_buf':      [15, 20, 25, 30],
+    'min_body':     [0, 10, 15, 20],
+}
+# 7*5*5*4*4*4 = 11,200 combos per structural config
+
+# Known best structural configs from Phase A (hard-coded to skip re-running Phase A)
+BEST_STRUCTURAL = [
+    # (sl, tp, ema50_touch, min_body, sess_start, sess_end)  -- Phase A top-3
+    (25, 50, True,  20, 16, 22),   # #1 PF=1.07 (EMA50 + body filter, tighter)
+    (25, 50, True,   0, 16, 22),   # #4 PF=1.04 (EMA50, no body filter, more trades)
+    (25, 50, False, 10, 16, 22),   # #12 no EMA50, more signals
+]
+
+
+# ─────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────
 def main():
-    print('='*65)
-    print('  ScalpingEURUSD v2 – Profitability-Focused Optimizer')
-    print('  Goal: PF > 1.2 AND WR > 55% (profitable + consistent)')
-    print('='*65)
+    print('='*70)
+    print('  ScalpingEURUSD v2 – Profitability Optimizer (Focused)')
+    print('  Structural: SL=25, TP=50 (RR 1:2), sess=16-22VN')
+    print('  Grid: RSI buy/sell + EMA buf + body  ~11,200 combos x3 structs')
+    print('='*70)
 
     print('\nLoading eurusd_m5.csv ...')
     df_all = load_data('eurusd_m5.csv')
@@ -398,64 +422,59 @@ def main():
     print(f'Period: {len(df):,} bars  {df["datetime"].iloc[0].date()} to {df["datetime"].iloc[-1].date()}')
     arr = build_arrays(df)
 
-    # ── STEP 1: TP SWEEP ──────────────────────────────────────
-    best_sweep = tp_sweep(arr)
-
-    # ── PHASE A: Grid over SL/TP + structural params ──────────
-    r_a = run_grid(arr, GRID_A, FIXED_A,
-                   'PHASE A – SL/TP + session + EMA50 (RSI fixed at broad range)',
-                   min_pf=1.0, min_wr=45.0, min_n=15)
-
-    if not r_a:
-        print('\nPhase A found nothing. Lowering thresholds...')
-        r_a = run_grid(arr, GRID_A, FIXED_A,
-                       'PHASE A retry (min_pf=0.6)',
-                       min_pf=0.6, min_wr=40.0, min_n=10)
-
-    print_top(r_a[:20], label='PHASE A TOP 20 (sorted by PF)')
-
-    # ── PHASE B: Fine-tune RSI + buffer (top-4 structural) ────
+    # ── FOCUSED PHASE B on 3 best structural configs ───────────
     all_b = []
-    if r_a:
-        for i, r in enumerate(r_a[:4]):
-            fixed_b = {**FIXED_A,
-                       'sl_pts': r['sl_pts'], 'tp_pts': r['tp_pts'],
-                       'ema50_touch': r['ema50_touch'],
-                       'min_body': r['min_body'],
-                       'sess_start': r['sess_start'],
-                       'sess_end': r['sess_end']}
-            rb = run_grid(arr, GRID_B, fixed_b,
-                          f'PHASE B #{i+1}  SL={r["sl_pts"]} TP={r["tp_pts"]} '
-                          f'sess={r["sess_start"]}-{r["sess_end"]}VN ema50={r["ema50_touch"]}',
-                          min_pf=1.0, min_wr=45.0, min_n=15)
-            all_b.extend(rb)
-        all_b.sort(key=lambda r: (-r['pf'], -r['wr']))
-        print_top(all_b[:20], label='PHASE B FINE-TUNE TOP 20 (sorted by PF)')
+    for i, (sl, tp, e50, body, ss, se) in enumerate(BEST_STRUCTURAL):
+        fixed_b = dict(
+            sl_pts=sl, tp_pts=tp, ema50_touch=e50, min_body=body,
+            sess_start=ss, sess_end=se,
+            use_be=False, risk_pct=1.0, max_consec=2, max_dd=3.0
+        )
+        rb = run_grid(arr, GRID_B_FOCUSED, fixed_b,
+                      f'STRUCT #{i+1}  SL={sl} TP={tp} RR=1:{tp/sl:.1f} '
+                      f'ema50={"Y" if e50 else "n"} body={body}p sess={ss}-{se}VN',
+                      min_pf=1.1, min_wr=33.0, min_n=20)
+        all_b.extend(rb)
+
+    all_b.sort(key=lambda r: (-r['pf'], -r['wr']))
+    print_top(all_b[:20], label='TOP 20 RESULTS (all structs, sorted by PF)')
 
     # ── FINAL SUMMARY ─────────────────────────────────────────
-    all_results = all_b if all_b else r_a
+    all_results = all_b
     if not all_results:
-        print('\nNo profitable configs found.')
+        # Retry with lower threshold
+        print('\nNo config PF>=1.1. Lowering to PF>=0.95...')
+        all_b2 = []
+        for i, (sl, tp, e50, body, ss, se) in enumerate(BEST_STRUCTURAL):
+            fixed_b = dict(
+                sl_pts=sl, tp_pts=tp, ema50_touch=e50, min_body=body,
+                sess_start=ss, sess_end=se,
+                use_be=False, risk_pct=1.0, max_consec=2, max_dd=3.0
+            )
+            rb = run_grid(arr, GRID_B_FOCUSED, fixed_b,
+                          f'RETRY #{i+1}  SL={sl} TP={tp}',
+                          min_pf=0.95, min_wr=30.0, min_n=15)
+            all_b2.extend(rb)
+        all_b2.sort(key=lambda r: (-r['pf'], -r['wr']))
+        print_top(all_b2[:10], label='RETRY TOP 10')
+        all_results = all_b2
+
+    if not all_results:
+        print('\nNo profitable configs found. Strategy needs rework.')
         return
 
     all_results.sort(key=lambda r: (-r['pf'], -r['wr']))
-    best_pf  = all_results[0]
-    print_best(best_pf, 'BEST CONFIG by Profit Factor')
+    print_best(all_results[0], 'BEST CONFIG (max Profit Factor)')
 
-    wrgood = [r for r in all_results if r['wr'] >= 60.0 and r['pf'] >= 1.0]
+    wrgood = [r for r in all_results if r['wr'] >= 38.0 and r['pf'] >= 1.2]
     if wrgood:
-        wrgood.sort(key=lambda r: (-r['wr'], -r['pf']))
-        print_best(wrgood[0], 'BEST CONFIG WR>=60% + PF>=1.0')
+        wrgood.sort(key=lambda r: (-r['pf'], -r['wr']))
+        print_best(wrgood[0], 'BEST CONFIG  WR>=38% + PF>=1.2')
 
-    wr70pf = [r for r in all_results if r['wr'] >= 70.0 and r['pf'] >= 1.0]
-    if wr70pf:
-        wr70pf.sort(key=lambda r: (-r['pf'], -r['wr']))
-        print_best(wr70pf[0], 'BEST CONFIG WR>=70% + PF>=1.0 (ideal)')
-    else:
-        best_wr = max(all_results, key=lambda r: r['wr'])
-        print(f'\n  Note: No config achieves WR>=70% + PF>=1.0.')
-        print(f'  Best WR with PF>=1.0: WR={max((r["wr"] for r in all_results if r["pf"]>=1.0), default=0):.1f}%')
-        print(f'  Best WR overall: {best_wr["wr"]:.1f}% (PF={best_wr["pf"]:.2f})')
+    wrgreat = [r for r in all_results if r['wr'] >= 42.0 and r['pf'] >= 1.2]
+    if wrgreat:
+        wrgreat.sort(key=lambda r: (-r['pf'] * r['wr']))
+        print_best(wrgreat[0], 'BEST CONFIG  WR>=42% + PF>=1.2')
 
     # Save
     out_rows = [{k: v for k,v in r.items() if not callable(v)} for r in all_results[:300]]
